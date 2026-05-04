@@ -1,0 +1,52 @@
+name: Docker Build and Run
+
+on:
+  push:
+    branches: ["*"]
+  pull_request:
+    branches: ["*"]
+
+jobs:
+  docker-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build container
+        run: docker compose build
+
+      - name: Start container
+        run: docker compose up -d
+
+      - name: Wait for services
+        run: |
+          sleep 10
+          docker compose ps
+
+      - name: Verify containers are running
+        run: |
+          # Fail if any container is not running
+          if [ "$(docker compose ps -q | wc -l)" -eq 0 ]; then
+            echo "No containers are running"
+            docker compose logs
+            exit 1
+          fi
+
+          # Extra safety: ensure all services are up
+          if docker compose ps --services --filter "status=running" | grep -q .; then
+            echo "Containers are running"
+          else
+            echo "Some containers are not running"
+            docker compose logs
+            exit 1
+          fi
+
+      - name: Show logs (on failure or success)
+        if: always()
+        run: docker compose logs
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down
