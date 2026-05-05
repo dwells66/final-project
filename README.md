@@ -1,6 +1,6 @@
 # flask-on-docker
 
-![Dev Build Status](https://github.com/dwells66/flask-on-docker/actions/workflows/dev_build.yml/badge.svg?branch=main)
+![Build Status](https://github.com/dwells66/flask-on-docker/actions/workflows/build.yml/badge.svg?branch=main)
 
 This repository allows you to run a Flask app using Docker containers as well as a PostGreSQL database and other resources. There are two configuration files as well as two Dockerfiles which help to build Docker container images, one for development and one for production. The production configuration allows Flask to run with Gunicorn and Nginx. This repository provides a simple format for learning how to use these applications. When visiting the webpage produced by the app, a simple message is displayed to show it is working properly. Gunicorn and Nginx are used to help manage the Flask app and handle static or media files. This allows the webpage to reference files from inside the code as well as those uploaded by users. The resources inside this repository provide a good starting point for developing a Python web application. 
 
