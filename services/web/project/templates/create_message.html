@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>Create Message</h2>
+
+{% if error %}
+    <p style="color:red;">{{ error }}</p>
+{% endif %}
+
+<form method="POST" action="/create_message">
+
+    <p>
+        Message:
+        <br>
+        <textarea name="message" rows="5" cols="50" required></textarea>
+    </p>
+
+    <button type="submit">Post Message</button>
+
+</form>
+
+{% endblock %}

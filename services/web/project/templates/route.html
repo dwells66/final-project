@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<h2>Recent Messages</h2>
+
+{% for tweet in tweets %}
+<div style="border:1px solid black; margin:10px; padding:10px;">
+
+    <p>
+        <b>User:</b> {{ tweet.username }}
+    </p>
+
+    <p>
+        <b>Created:</b> {{ tweet.created_at }}
+    </p>
+
+    <p>
+        {{ tweet.text | e }}
+    </p>
+
+</div>
+{% endfor %}
+
+{% if tweets|length == 0 %}
+    <p>No messages yet.</p>
+{% endif %}
+
+<div>
+    {% if page > 0 %}
+        <a href="/?page={{ page - 1 }}">Previous</a>
+    {% endif %}
+
+    <a href="/?page={{ page + 1 }}">Next</a>
+</div>
+
+{% endblock %}

@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Twitter Big Data</title>
+
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 20px;
+            }
+
+            ol {
+                padding-left: 20px;
+            }
+        </style>
+    </head>
+
+    <body>
+        <h1>Big Data Twitter Clone</h1>
+
+        <ol>
+            <li><a href='/'>Home</a></li>
+            <li><a href="/search">Search</a></li>
+
+            {% if logged_in %}
+                <li><a href='/create_message'>Create Message</a></li>
+                <li><a href='/logout'>Logout</a></li>
+            {% else %}
+                <li><a href='/login'>Login</a></li>
+                <li><a href='/create_account'>Create Account</a></li>
+            {% endif %}
+        </ol>
+
+        {% block content %}
+        {% endblock %}
+    </body>
+</html>

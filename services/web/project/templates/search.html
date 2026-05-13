@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1>Search</h1>
+
+<form method="get" action="/search">
+    <input name="q" value="{{ query }}" placeholder="Search messages">
+    <button type="submit">Search</button>
+</form>
+
+<hr>
+
+{% for r in results %}
+    <div style="margin-bottom: 20px;">
+
+        <div><b>User:</b> {{ r.username }}</div>
+
+        <div><b>{{ r.created_at }}</b></div>
+
+        <div>{{ r.highlighted_text | safe }}</div>
+
+    </div>
+{% endfor %}
+
+{% if results|length == 0 %}
+    <p>No results found.</p>
+{% endif %}
+
+<hr>
+
+<div>
+    {% if page > 1 %}
+        <a href="/search?q={{ query }}&page={{ page - 1 }}">Previous</a>
+    {% endif %}
+
+    <a href="/search?q={{ query }}&page={{ page + 1 }}">Next</a>
+</div>
+
+{% endblock %}
