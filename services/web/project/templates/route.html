@@ -6,7 +6,10 @@
 
 {% for tweet in tweets %}
 <div style="border:1px solid black; margin:10px; padding:10px;">
-
+    
+    <p>
+        <b>User ID:</b> {{ tweet.id_users }}
+    </p>
     <p>
         <b>User:</b> {{ tweet.username }}
     </p>
@@ -27,7 +30,7 @@
 {% endif %}
 
 <div>
-    {% if page > 0 %}
+    {% if page > 1 %}
         <a href="/?page={{ page - 1 }}">Previous</a>
     {% endif %}
 

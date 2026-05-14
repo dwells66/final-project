@@ -9,25 +9,57 @@
     <button type="submit">Search</button>
 </form>
 
-<hr>
+<p>
+    Search Tips:
+</p>
+<ul>
+    <li>Search words relating to your query with no filler words like <b>and</b>.</li>
+    <li>Example query: If looking for tweets relating to COVID and Trump, search <b>COVID Trump</b>.</li>
+    <li>Words with no matches, possibly due to misspellings, may prompt a suggestion compiled from a list of common words in the tweets database.</li>
+    <li>Results are ranked by relevance</li>
+</ul>
 
-{% for r in results %}
-    <div style="margin-bottom: 20px;">
-
-        <div><b>User:</b> {{ r.username }}</div>
-
-        <div><b>{{ r.created_at }}</b></div>
-
-        <div>{{ r.highlighted_text | safe }}</div>
-
-    </div>
-{% endfor %}
-
-{% if results|length == 0 %}
-    <p>No results found.</p>
+{% if suggestion %}
+    <p>
+        Did you mean:
+        <a href="/search?q={{ suggestion | urlencode }}">
+            {{ suggestion }}
+        </a>
+        ?
+    </p>
 {% endif %}
 
 <hr>
+
+{# ================= RESULTS HANDLING ================= #}
+
+{% if results is none %}
+
+    <p>Type something to search tweets.</p>
+
+{% elif results|length == 0 %}
+
+    <p>No results found.</p>
+
+{% else %}
+
+    {% for r in results %}
+        <div style="margin-bottom: 20px;">
+
+            <div><b>User ID:</b> {{ r.username }}</div>
+
+            <div><b>{{ r.created_at }}</b></div>
+
+            <div>{{ r.highlighted_text | safe }}</div>
+
+        </div>
+    {% endfor %}
+
+{% endif %}
+
+<hr>
+
+{# ================= PAGINATION ================= #}
 
 <div>
     {% if page > 1 %}

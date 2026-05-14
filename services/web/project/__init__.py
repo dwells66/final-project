@@ -1,4 +1,6 @@
 import os
+import html
+import re
 
 import random
 
@@ -13,6 +15,7 @@ from flask import (
 )
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import text
 
 app = Flask(__name__)
@@ -53,11 +56,23 @@ def upload_file():
     </form>
     """
 
+def get_logged_in_user():
+    username = request.cookies.get("username")
+    password = request.cookies.get("password")
+
+    if not username or not password:
+        return None
+
+    if not are_credentials_good(username, password):
+        return None
+
+    return username
+
 @app.route('/')
 def root():
-    page = request.args.get('page', 0, type=int)
+    page = request.args.get('page', 1, type=int)
     limit = 20
-    offset = page * limit
+    offset = (page -1) * limit
 
     query = text("""
         SELECT
@@ -77,10 +92,8 @@ def root():
         {"limit": limit, "offset": offset}
     ).fetchall()
 
-    username = request.cookies.get('username')
-    password = request.cookies.get('password')
-
-    logged_in = are_credentials_good(username, password)
+    username = get_logged_in_user()
+    logged_in = username is not None
 
     return render_template(
         'route.html',
@@ -92,15 +105,17 @@ def root():
 def are_credentials_good(username, password):
     result = db.session.execute(
         text("""
-            SELECT 1
+            SELECT password_hash
             FROM credentials
-            WHERE username = :username
-            AND password_hash = :password
+            WHERE username = :u
         """),
-        {"username": username, "password": password}
+        {"u": username}
     ).fetchone()
 
-    return result is not None
+    if not result:
+        return False
+    stored_hash = result[0]
+    return check_password_hash(stored_hash, password)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -110,8 +125,8 @@ def login():
 
         if are_credentials_good(username, password):
             response = make_response(redirect('/'))
-            response.set_cookie('username', username)
-            response.set_cookie('password', password)
+            response.set_cookie('username', username, max_age=60*30)
+            response.set_cookie('password', password, max_age=60*30)
             return response
         else:
             return render_template('login.html', bad_credentials=True, logged_in=False)
@@ -125,51 +140,104 @@ def logout():
     response.set_cookie('password', '', expires=0)
     return response
 
+def get_spelling_suggestion(word):
+
+    result = db.session.execute(
+        text("""
+            SELECT word
+            FROM word_dictionary
+            ORDER BY similarity(word, :w) DESC, frequency DESC
+            LIMIT 1
+        """),
+        {"w": word.lower()}
+    ).fetchone()
+
+    if result and result[0] != word.lower():
+        return result[0]
+
+    return word
+
+def safe_ts_headline(text):
+    # escape ALL HTML first
+    text = html.escape(text)
+
+    # re-enable ONLY <mark> tags (from ts_headline)
+    text = text.replace("&lt;mark&gt;", "<mark>")
+    text = text.replace("&lt;/mark&gt;", "</mark>")
+
+    return text
+
 @app.route("/search")
 def search():
-    query = request.args.get("q", "").strip()
+    query = request.args.get("q", None)
     page = int(request.args.get("page", 1))
 
     limit = 20
     offset = (page - 1) * limit
 
-    username = request.cookies.get("username")
-    password = request.cookies.get("password")
+    username = get_logged_in_user()
+    logged_in = username is not None
+    
+    # ✅ FIRST VISIT (no q parameter at all)
+    if query is None:
+        return render_template(
+            "search.html",
+            results=None,
+            query="",
+            page=page,
+            logged_in=logged_in
+        )
 
-    logged_in = are_credentials_good(username, password)
+    query = query.strip()
 
+    # ✅ USER SUBMITTED EMPTY SEARCH
+    if query == "":
+        return render_template(
+            "search.html",
+            results=None,
+            query="",
+            page=page,
+            logged_in=logged_in
+        )
 
-    if not query:
-        return render_template("search.html", results=[], query="", page=page, logged_in=logged_in)
 
     sql = text("""
         WITH q AS (
             SELECT plainto_tsquery('english', :query) AS ts_query
-        )
-        SELECT
-            t.id_users AS username,
-            t.text,
-            t.created_at,
+        ),
+        ranked AS (
+            SELECT
+                t.id_users,
+                t.text,
+                t.created_at,
+                q.ts_query,
 
-            to_tsvector('english', t.text) <=> q.ts_query AS distance,
+                to_tsvector('english', t.text) <=> q.ts_query AS distance
+
+            FROM tweets_clean t, q
+
+            WHERE to_tsvector('english', t.text) @@ q.ts_query
+
+            ORDER BY
+                distance ASC,
+                t.created_at DESC
+
+            LIMIT :limit OFFSET :offset)
+
+        SELECT
+            id_users AS username,
+            text,
+            created_at,
+            distance,
 
             ts_headline(
                 'english',
-                t.text,
-                q.ts_query,
+                text,
+                ts_query,
                 'StartSel=<mark>, StopSel=</mark>'
             ) AS highlighted_text
 
-        FROM tweets_clean t,
-        q
-
-        WHERE to_tsvector('english', t.text) @@ q.ts_query
-
-        ORDER BY
-            distance ASC,
-            t.created_at DESC
-
-        LIMIT :limit OFFSET :offset;
+        FROM ranked;
     """)
 
     results = db.session.execute(sql, {
@@ -178,10 +246,36 @@ def search():
         "offset": offset
     }).fetchall()
 
+    cleaned_results = []
+
+
+    for r in results:
+        cleaned_results.append({
+            "username": r.username,
+            "text": r.text,
+            "created_at": r.created_at,
+            "distance": r.distance,
+            "highlighted_text": safe_ts_headline(r.highlighted_text)
+        })
+
+    suggestion = None
+
+    if len(results) == 0:
+
+        words = words = re.findall(r"[a-zA-Z]{3,20}", query.lower())
+
+        suggested_words = [
+            get_spelling_suggestion(w)
+            for w in words
+        ]
+
+        suggestion = " ".join(suggested_words)
+
     return render_template(
         "search.html",
-        results=results,
+        results=cleaned_results,
         query=query,
+        suggestion=suggestion,
         page=page,
         logged_in=logged_in
     )
@@ -264,7 +358,7 @@ def create_account():
                     "id": new_id,
                     "username": username,
                     "name": name,
-                    "password": password1
+                    "password": generate_password_hash(password1)
                 }
             )
             # 5. commit both
@@ -281,15 +375,12 @@ def create_account():
 @app.route("/create_message", methods=["GET", "POST"])
 def create_message():
 
-    username = request.cookies.get("username")
+    username = get_logged_in_user()
 
     if not username:
         return redirect("/login")
 
-    logged_in = are_credentials_good(
-        request.cookies.get("username"),
-        request.cookies.get("password")
-    )
+    logged_in = True
 
     if request.method == "POST":
 
